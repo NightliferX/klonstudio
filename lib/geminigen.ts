@@ -3,14 +3,18 @@ import type { QueueProvider, SceneRecord } from "@/lib/types";
 import { createPlaceholderReference } from "@/lib/demo";
 
 export type GeminigenSubmissionResponse = {
+  id?: number;
   uuid?: string;
   model_name?: string;
   input_text?: string;
   status?: number;
+  status_desc?: string;
   status_percentage?: number;
   error_message?: string;
   media_url?: string;
   thumbnail_url?: string;
+  generate_result?: string;
+  thumbnail_small?: string;
 };
 
 export type GeminigenWebhookPayload = {
@@ -86,6 +90,29 @@ async function submitJson(endpoint: string, payload: Record<string, unknown>) {
       "x-api-key": apiKey
     },
     body: JSON.stringify(payload)
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(`GeminiGen request failed: ${message}`);
+  }
+
+  return (await response.json()) as GeminigenSubmissionResponse;
+}
+
+async function fetchJson(endpoint: string) {
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    return null;
+  }
+
+  const response = await fetch(`${GEMINIGEN_API_BASE_URL}${endpoint}`, {
+    method: "GET",
+    headers: {
+      Accept: "application/json",
+      "x-api-key": apiKey
+    },
+    cache: "no-store"
   });
 
   if (!response.ok) {
@@ -180,6 +207,14 @@ export async function submitVideoGeneration(scene: SceneRecord): Promise<{
   };
 }
 
+export async function fetchGenerationStatus(conversionId: string) {
+  if (!conversionId) {
+    return null;
+  }
+
+  return fetchJson(`/history/${conversionId}`);
+}
+
 export function verifyGeminigenWebhook(eventUuid: string, signatureHex: string) {
   const publicKeyPem = process.env.GEMINIGEN_WEBHOOK_PUBLIC_KEY?.replace(/\\n/g, "\n");
   if (!publicKeyPem) {
@@ -201,4 +236,16 @@ export function getSubmissionModel(submission: GeminigenSubmissionResponse | nul
 
 export function getSubmissionId(submission: GeminigenSubmissionResponse | null) {
   return submission?.uuid;
+}
+
+export function getSubmissionHistoryId(submission: GeminigenSubmissionResponse | null) {
+  return submission?.id ? String(submission.id) : undefined;
+}
+
+export function getSubmissionMediaUrl(submission: GeminigenSubmissionResponse | null) {
+  return submission?.media_url ?? submission?.generate_result;
+}
+
+export function getSubmissionThumbnailUrl(submission: GeminigenSubmissionResponse | null) {
+  return submission?.thumbnail_url ?? submission?.thumbnail_small;
 }

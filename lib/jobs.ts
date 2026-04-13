@@ -1,6 +1,15 @@
 import { JOB_DB_PATH } from "@/lib/constants";
 import { readJsonFile, writeJsonFile } from "@/lib/file-store";
-import { getSubmissionId, getSubmissionModel, getSubmissionProgress, submitVideoGeneration } from "@/lib/geminigen";
+import {
+  fetchGenerationStatus,
+  getSubmissionHistoryId,
+  getSubmissionId,
+  getSubmissionMediaUrl,
+  getSubmissionModel,
+  getSubmissionProgress,
+  getSubmissionThumbnailUrl,
+  submitVideoGeneration
+} from "@/lib/geminigen";
 import type { QueueSnapshot, SceneRecord, VideoJob } from "@/lib/types";
 import { makeId } from "@/lib/utils";
 
@@ -12,6 +21,24 @@ async function readQueue() {
 
 async function saveQueue(queue: QueueSnapshot) {
   await writeJsonFile(JOB_DB_PATH, queue);
+}
+
+function getSmoothProgress(job: VideoJob) {
+  const elapsedMs = Date.now() - Date.parse(job.createdAt);
+  const checkpoints = [
+    { afterMs: 5_000, progress: 4 },
+    { afterMs: 15_000, progress: 8 },
+    { afterMs: 30_000, progress: 15 },
+    { afterMs: 60_000, progress: 26 },
+    { afterMs: 120_000, progress: 41 },
+    { afterMs: 180_000, progress: 56 },
+    { afterMs: 300_000, progress: 72 },
+    { afterMs: 420_000, progress: 84 },
+    { afterMs: 600_000, progress: 92 },
+    { afterMs: 900_000, progress: 96 }
+  ];
+
+  return checkpoints.reduce((best, point) => (elapsedMs >= point.afterMs ? point.progress : best), job.progress);
 }
 
 export async function getJobs() {
@@ -69,6 +96,57 @@ export async function processPendingJobs(sceneMap: Record<string, SceneRecord>) 
   }
 
   if (active) {
+    let didChange = false;
+
+    if (active.externalHistoryId) {
+      try {
+        const remote = await fetchGenerationStatus(active.externalHistoryId);
+        const mediaUrl = getSubmissionMediaUrl(remote);
+        const thumbnailUrl = getSubmissionThumbnailUrl(remote);
+        const remoteProgress = getSubmissionProgress(remote);
+
+        active.progress = Math.max(active.progress, remoteProgress, getSmoothProgress(active));
+        active.outputUrl = mediaUrl ?? active.outputUrl;
+        active.thumbnailUrl = thumbnailUrl ?? active.thumbnailUrl;
+
+        if (Number(remote?.status ?? 0) >= 3 || remote?.error_message) {
+          active.status = "failed";
+          active.statusLabel = "Failed";
+          active.error = remote?.error_message ?? active.error;
+        } else if (Number(remote?.status ?? 0) >= 2 && (mediaUrl ?? active.outputUrl)) {
+          active.status = "completed";
+          active.progress = 100;
+          active.statusLabel = "Completed";
+        } else {
+          active.status = "rendering";
+          active.statusLabel = remote?.status_desc?.trim() || `Rendering ${active.progress}%`;
+        }
+
+        active.updatedAt = new Date().toISOString();
+        didChange = true;
+      } catch {
+        const smoothedProgress = Math.max(active.progress, getSmoothProgress(active));
+        if (smoothedProgress !== active.progress) {
+          active.progress = smoothedProgress;
+          active.statusLabel = `Rendering ${active.progress}%`;
+          active.updatedAt = new Date().toISOString();
+          didChange = true;
+        }
+      }
+    } else {
+      const smoothedProgress = Math.max(active.progress, getSmoothProgress(active));
+      if (smoothedProgress !== active.progress) {
+        active.progress = smoothedProgress;
+        active.statusLabel = `Rendering ${active.progress}%`;
+        active.updatedAt = new Date().toISOString();
+        didChange = true;
+      }
+    }
+
+    if (didChange) {
+      await saveQueue(queue);
+    }
+
     return queue.jobs;
   }
 
@@ -92,11 +170,12 @@ export async function processPendingJobs(sceneMap: Record<string, SceneRecord>) 
   next.provider = providerResult.provider;
   next.modelName = getSubmissionModel(providerResult.submission, process.env.GEMINIGEN_VIDEO_MODEL ?? "veo-3");
   next.externalJobId = getSubmissionId(providerResult.submission);
+  next.externalHistoryId = getSubmissionHistoryId(providerResult.submission);
   next.status = "rendering";
   next.progress = providerResult.provider === "simulated" ? 12 : getSubmissionProgress(providerResult.submission);
   next.statusLabel = providerResult.provider === "simulated" ? "Rendering 12%" : `Rendering ${next.progress}%`;
-  next.outputUrl = providerResult.submission?.media_url;
-  next.thumbnailUrl = providerResult.submission?.thumbnail_url;
+  next.outputUrl = getSubmissionMediaUrl(providerResult.submission);
+  next.thumbnailUrl = getSubmissionThumbnailUrl(providerResult.submission);
   next.updatedAt = new Date().toISOString();
 
   await saveQueue(queue);
@@ -118,14 +197,14 @@ export async function updateJobFromWebhook(
   target.thumbnailUrl = payload.thumbnailUrl ?? target.thumbnailUrl;
   target.updatedAt = new Date().toISOString();
 
-  if (payload.status >= 2 && payload.mediaUrl) {
-    target.status = "completed";
-    target.statusLabel = "Completed";
-    target.progress = 100;
-  } else if (payload.errorMessage) {
+  if (payload.status >= 3 || payload.errorMessage) {
     target.status = "failed";
     target.statusLabel = "Failed";
     target.error = payload.errorMessage;
+  } else if (payload.status >= 2 && (payload.mediaUrl ?? target.outputUrl)) {
+    target.status = "completed";
+    target.statusLabel = "Completed";
+    target.progress = 100;
   } else {
     target.status = "rendering";
     target.statusLabel = `Rendering ${payload.statusPercentage}%`;

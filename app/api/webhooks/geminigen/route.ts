@@ -14,10 +14,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
 
-  if (payload.event_name === "IMAGE_GENERATION_COMPLETED" && payload.data.uuid && payload.data.media_url) {
+  if (
+    payload.event_name === "IMAGE_GENERATION_COMPLETED" &&
+    payload.data.uuid &&
+    (payload.data.media_url || payload.data.generate_result)
+  ) {
     const pendingImage = await consumePendingImageJob(payload.data.uuid);
     if (pendingImage) {
-      await updateSceneAlternative(pendingImage.sceneId, pendingImage.slot, payload.data.media_url, pendingImage.placeholderUrl);
+      await updateSceneAlternative(
+        pendingImage.sceneId,
+        pendingImage.slot,
+        payload.data.media_url ?? payload.data.generate_result ?? pendingImage.placeholderUrl,
+        pendingImage.placeholderUrl
+      );
     }
   }
 
@@ -25,8 +34,8 @@ export async function POST(request: Request) {
     await updateJobFromWebhook(payload.data.uuid, {
       status: Number(payload.data.status ?? 2),
       statusPercentage: Number(payload.data.status_percentage ?? 100),
-      mediaUrl: payload.data.media_url,
-      thumbnailUrl: payload.data.thumbnail_url,
+      mediaUrl: payload.data.media_url ?? payload.data.generate_result,
+      thumbnailUrl: payload.data.thumbnail_url ?? payload.data.thumbnail_small,
       errorMessage: payload.data.error_message
     });
   }

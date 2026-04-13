@@ -10,8 +10,46 @@ const emptyStore: SessionStore = {
   latestAnalysis: null
 };
 
+function normalizeScenes(scenes: SceneRecord[] | undefined): SceneRecord[] {
+  return (scenes ?? []).map((scene) => ({
+    ...scene,
+    scriptText:
+      scene.scriptText ??
+      scene.subtitles?.map((word) => word.word).join(" ").trim() ??
+      scene.narration ??
+      "",
+    narration: scene.narration ?? "",
+    sceneAdjustment: scene.sceneAdjustment ?? "",
+    referenceImage: scene.referenceImage ?? "",
+    alternatives: Array.isArray(scene.alternatives) ? scene.alternatives : [],
+    subtitles: Array.isArray(scene.subtitles) ? scene.subtitles : [],
+    promptPackage: {
+      visualPrompt: scene.promptPackage?.visualPrompt ?? "",
+      motionPrompt: scene.promptPackage?.motionPrompt ?? "",
+      cloneDirective: scene.promptPackage?.cloneDirective ?? "",
+      negativePrompt: scene.promptPackage?.negativePrompt ?? ""
+    }
+  }));
+}
+
+function normalizeAnalysis(record: AnalysisRecord | null): AnalysisRecord | null {
+  if (!record) {
+    return null;
+  }
+
+  return {
+    ...record,
+    transcriptText: record.transcriptText ?? "",
+    transcript: Array.isArray(record.transcript) ? record.transcript : [],
+    scenes: normalizeScenes(record.scenes)
+  };
+}
+
 export async function getSessionStore() {
-  return readJsonFile<SessionStore>(APP_DB_PATH, emptyStore);
+  const store = await readJsonFile<SessionStore>(APP_DB_PATH, emptyStore);
+  return {
+    latestAnalysis: normalizeAnalysis(store.latestAnalysis)
+  };
 }
 
 export async function saveLatestAnalysis(record: AnalysisRecord) {

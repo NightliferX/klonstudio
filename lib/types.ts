@@ -71,6 +71,7 @@ export type VideoJob = {
   outputUrl?: string;
   thumbnailUrl?: string;
   externalJobId?: string;
+  externalHistoryId?: string;
   createdAt: string;
   updatedAt: string;
   error?: string;
