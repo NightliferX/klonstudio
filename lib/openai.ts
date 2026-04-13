@@ -118,130 +118,135 @@ export async function analyzeVideoAsset(asset: AssetRecord): Promise<AnalysisRec
     return buildFallbackAnalysis(asset);
   }
 
-  const fileBuffer = await readFile(asset.filePath);
-  const file = await OpenAI.toFile(fileBuffer, asset.name);
-  const transcription = await client.audio.transcriptions.create({
-    file,
-    model: process.env.OPENAI_TRANSCRIPTION_MODEL ?? "whisper-1",
-    response_format: "verbose_json",
-    timestamp_granularities: ["word", "segment"]
-  } as never);
+  try {
+    const fileBuffer = await readFile(asset.filePath);
+    const file = await OpenAI.toFile(fileBuffer, asset.name);
+    const transcription = await client.audio.transcriptions.create({
+      file,
+      model: process.env.OPENAI_TRANSCRIPTION_MODEL ?? "whisper-1",
+      response_format: "verbose_json",
+      timestamp_granularities: ["word", "segment"]
+    } as never);
 
-  const segments = ((transcription as never as { segments?: Array<{ start?: number; end?: number; text?: string; words?: Array<{ word?: string; start?: number; end?: number }> }> }).segments ?? []).map(
-    (segment) => ({
-      id: makeId("seg"),
-      start: Number(segment.start ?? 0),
-      end: Number(segment.end ?? segment.start ?? 0),
-      text: segment.text ?? "",
-      words: normalizeWords(segment.words)
-    })
-  );
+    const segments = ((transcription as never as { segments?: Array<{ start?: number; end?: number; text?: string; words?: Array<{ word?: string; start?: number; end?: number }> }> }).segments ?? []).map(
+      (segment) => ({
+        id: makeId("seg"),
+        start: Number(segment.start ?? 0),
+        end: Number(segment.end ?? segment.start ?? 0),
+        text: segment.text ?? "",
+        words: normalizeWords(segment.words)
+      })
+    );
 
-  const transcriptText = (transcription as never as { text?: string }).text ?? segments.map((segment) => segment.text).join(" ");
+    const transcriptText = (transcription as never as { text?: string }).text ?? segments.map((segment) => segment.text).join(" ");
 
-  const completion = await client.chat.completions.create({
-    model: process.env.OPENAI_SCENE_MODEL ?? "gpt-4o",
-    response_format: {
-      type: "json_schema",
-      json_schema: {
-        name: "scene_breakdown",
-        schema: {
-          type: "object",
-          additionalProperties: false,
-          properties: {
-            scenes: {
-              type: "array",
-              items: {
-                type: "object",
-                additionalProperties: false,
-                properties: {
-                  label: { type: "string" },
-                  start: { type: "number" },
-                  end: { type: "number" },
-                  narration: { type: "string" },
-                  visualPrompt: { type: "string" },
-                  motionPrompt: { type: "string" },
-                  cloneDirective: { type: "string" },
-                  negativePrompt: { type: "string" }
-                },
-                required: ["label", "start", "end", "narration", "visualPrompt", "motionPrompt", "cloneDirective", "negativePrompt"]
+    const completion = await client.chat.completions.create({
+      model: process.env.OPENAI_SCENE_MODEL ?? "gpt-4o",
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "scene_breakdown",
+          schema: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              scenes: {
+                type: "array",
+                items: {
+                  type: "object",
+                  additionalProperties: false,
+                  properties: {
+                    label: { type: "string" },
+                    start: { type: "number" },
+                    end: { type: "number" },
+                    narration: { type: "string" },
+                    visualPrompt: { type: "string" },
+                    motionPrompt: { type: "string" },
+                    cloneDirective: { type: "string" },
+                    negativePrompt: { type: "string" }
+                  },
+                  required: ["label", "start", "end", "narration", "visualPrompt", "motionPrompt", "cloneDirective", "negativePrompt"]
+                }
               }
-            }
-          },
-          required: ["scenes"]
+            },
+            required: ["scenes"]
+          }
         }
-      }
-    },
-    messages: [
-      {
-        role: "system",
-        content:
-          "You break transcripts into cinematic short-form video scenes. Return 9:16 vertical video prompts only. Visual prompts must be extremely detailed, production-grade, and image-model friendly."
       },
-      {
-        role: "user",
-        content: `Split this transcript into scenes and generate prompts.\n\nTranscript:\n${transcriptText}`
-      }
-    ]
-  } as never);
+      messages: [
+        {
+          role: "system",
+          content:
+            "You break transcripts into cinematic short-form video scenes. Return 9:16 vertical video prompts only. Visual prompts must be extremely detailed, production-grade, and image-model friendly."
+        },
+        {
+          role: "user",
+          content: `Split this transcript into scenes and generate prompts.\n\nTranscript:\n${transcriptText}`
+        }
+      ]
+    } as never);
 
-  const raw = completion.choices[0]?.message?.content ?? "{\"scenes\":[]}";
-  const parsed = JSON.parse(raw) as {
-    scenes: Array<{
-      label: string;
-      start: number;
-      end: number;
-      narration: string;
-      visualPrompt: string;
-      motionPrompt: string;
-      cloneDirective: string;
-      negativePrompt: string;
-    }>;
-  };
+    const raw = completion.choices[0]?.message?.content ?? "{\"scenes\":[]}";
+    const parsed = JSON.parse(raw) as {
+      scenes: Array<{
+        label: string;
+        start: number;
+        end: number;
+        narration: string;
+        visualPrompt: string;
+        motionPrompt: string;
+        cloneDirective: string;
+        negativePrompt: string;
+      }>;
+    };
 
-  const generatedScenes = parsed.scenes.length > 0 ? parsed.scenes : buildFallbackAnalysis(asset).scenes.map((scene) => ({
-    label: scene.label,
-    start: scene.start,
-    end: scene.end,
-    narration: scene.narration,
-    visualPrompt: scene.promptPackage.visualPrompt,
-    motionPrompt: scene.promptPackage.motionPrompt,
-    cloneDirective: scene.promptPackage.cloneDirective,
-    negativePrompt: scene.promptPackage.negativePrompt
-  }));
-
-  const scenes: SceneRecord[] = generatedScenes.map((scene, index) => {
-    const matchingWords = segments.flatMap((segment) => segment.words).filter((word) => word.start >= scene.start && word.end <= scene.end);
-
-    return {
-      id: makeId("scene"),
-      label: scene.label || `Scene ${index + 1}`,
+    const generatedScenes = parsed.scenes.length > 0 ? parsed.scenes : buildFallbackAnalysis(asset).scenes.map((scene) => ({
+      label: scene.label,
       start: scene.start,
       end: scene.end,
-      duration: scene.end - scene.start,
       narration: scene.narration,
-      subtitles: matchingWords,
-      sceneAdjustment: "",
-      referenceImage: createPlaceholderReference(`SCENE ${index + 1}`, scene.narration),
-      alternatives: [
-        createPlaceholderReference(`ALT ${index + 1}A`, "Prompt variation A"),
-        createPlaceholderReference(`ALT ${index + 1}B`, "Prompt variation B"),
-        createPlaceholderReference(`ALT ${index + 1}C`, "Prompt variation C")
-      ],
-      promptPackage: {
-        visualPrompt: scene.visualPrompt,
-        motionPrompt: scene.motionPrompt,
-        cloneDirective: scene.cloneDirective,
-        negativePrompt: scene.negativePrompt
-      }
-    };
-  });
+      visualPrompt: scene.promptPackage.visualPrompt,
+      motionPrompt: scene.promptPackage.motionPrompt,
+      cloneDirective: scene.promptPackage.cloneDirective,
+      negativePrompt: scene.promptPackage.negativePrompt
+    }));
 
-  return {
-    asset,
-    transcriptText,
-    transcript: segments,
-    scenes,
-    createdAt: new Date().toISOString()
-  };
+    const scenes: SceneRecord[] = generatedScenes.map((scene, index) => {
+      const matchingWords = segments.flatMap((segment) => segment.words).filter((word) => word.start >= scene.start && word.end <= scene.end);
+
+      return {
+        id: makeId("scene"),
+        label: scene.label || `Scene ${index + 1}`,
+        start: scene.start,
+        end: scene.end,
+        duration: scene.end - scene.start,
+        narration: scene.narration,
+        subtitles: matchingWords,
+        sceneAdjustment: "",
+        referenceImage: createPlaceholderReference(`SCENE ${index + 1}`, scene.narration),
+        alternatives: [
+          createPlaceholderReference(`ALT ${index + 1}A`, "Prompt variation A"),
+          createPlaceholderReference(`ALT ${index + 1}B`, "Prompt variation B"),
+          createPlaceholderReference(`ALT ${index + 1}C`, "Prompt variation C")
+        ],
+        promptPackage: {
+          visualPrompt: scene.visualPrompt,
+          motionPrompt: scene.motionPrompt,
+          cloneDirective: scene.cloneDirective,
+          negativePrompt: scene.negativePrompt
+        }
+      };
+    });
+
+    return {
+      asset,
+      transcriptText,
+      transcript: segments,
+      scenes,
+      createdAt: new Date().toISOString()
+    };
+  } catch (error) {
+    console.error("OpenAI analysis failed, using fallback scenes instead.", error);
+    return buildFallbackAnalysis(asset);
+  }
 }

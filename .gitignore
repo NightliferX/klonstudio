@@ -2,6 +2,8 @@
 node_modules
 .pnpm-store
 .env.local
+api.env
+api.env.rtf
 out
 tsconfig.tsbuildinfo
 storage/*
