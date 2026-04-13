@@ -8,7 +8,7 @@ services:
     ports:
       - "3001:3000"
     env_file:
-      - .env.local
+      - api.env
     environment:
       NODE_ENV: production
       PORT: 3000
