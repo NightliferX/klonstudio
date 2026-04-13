@@ -62,5 +62,5 @@ export const queueSchema = z.object({
       })
     })
   ),
-  provider: z.enum(["veo3"])
+  provider: z.enum(["veo3", "grok"])
 });

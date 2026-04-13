@@ -71,7 +71,7 @@ function ProviderToggle({
           : "border-white/10 bg-white/[0.03] text-white/45 hover:border-violet-400/30 hover:text-white"
       )}
     >
-      {provider === "veo3" ? "Veo 3" : "Simulated"}
+      {provider === "veo3" ? "Veo 3" : provider === "grok" ? "Grok" : "Simulated"}
     </button>
   );
 }
@@ -110,7 +110,7 @@ export default function Dashboard({ initialAnalysis, initialJobs }: Props) {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [analysis, setAnalysis] = useState<AnalysisRecord | null>(initialAnalysis);
   const [activeSceneId, setActiveSceneId] = useState(initialAnalysis?.scenes[0]?.id ?? "");
-  const [provider, setProvider] = useState<"veo3">("veo3");
+  const [provider, setProvider] = useState<"veo3" | "grok">("veo3");
   const [jobs, setJobs] = useState<VideoJob[]>(initialJobs);
   const [statusMessage, setStatusMessage] = useState<string>("Warte auf Input.");
   const [isPending, startUiTransition] = useTransition();
@@ -543,6 +543,7 @@ export default function Dashboard({ initialAnalysis, initialJobs }: Props) {
                 GeminiGen API
               </span>
               <ProviderToggle provider="veo3" active={provider === "veo3"} onClick={() => setProvider("veo3")} />
+              <ProviderToggle provider="grok" active={provider === "grok"} onClick={() => setProvider("grok")} />
             </div>
           </div>
 

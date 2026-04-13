@@ -56,7 +56,7 @@ export type AnalysisRecord = {
 
 export type JobStatus = "queued" | "rendering" | "completed" | "failed";
 
-export type QueueProvider = "veo3" | "simulated";
+export type QueueProvider = "veo3" | "grok" | "simulated";
 
 export type VideoJob = {
   id: string;

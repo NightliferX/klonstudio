@@ -46,7 +46,7 @@ export async function getJobs() {
   return queue.jobs.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
-export async function enqueueSceneJobs(scenes: SceneRecord[], provider: "veo3") {
+export async function enqueueSceneJobs(scenes: SceneRecord[], provider: "veo3" | "grok") {
   const queue = await readQueue();
   const now = new Date().toISOString();
   const jobs = scenes.map<VideoJob>((scene, index) => ({
@@ -165,10 +165,15 @@ export async function processPendingJobs(sceneMap: Record<string, SceneRecord>) 
     return queue.jobs;
   }
 
-  const providerResult = await submitVideoGeneration(scene);
+  const providerResult = await submitVideoGeneration(scene, next.provider);
 
   next.provider = providerResult.provider;
-  next.modelName = getSubmissionModel(providerResult.submission, process.env.GEMINIGEN_VIDEO_MODEL ?? "veo-3");
+  next.modelName = getSubmissionModel(
+    providerResult.submission,
+    next.provider === "grok"
+      ? process.env.GEMINIGEN_GROK_VIDEO_MODEL ?? "grok-3"
+      : process.env.GEMINIGEN_VIDEO_MODEL ?? "veo-2"
+  );
   next.externalJobId = getSubmissionId(providerResult.submission);
   next.externalHistoryId = getSubmissionHistoryId(providerResult.submission);
   next.status = "rendering";

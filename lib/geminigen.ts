@@ -37,6 +37,26 @@ function getVideoModel() {
   return process.env.GEMINIGEN_VIDEO_MODEL ?? "veo-2";
 }
 
+function getGrokVideoModel() {
+  return process.env.GEMINIGEN_GROK_VIDEO_MODEL ?? "grok-3";
+}
+
+function getGrokVideoResolution() {
+  return process.env.GEMINIGEN_GROK_VIDEO_RESOLUTION ?? "480p";
+}
+
+function getGrokVideoAspectRatio() {
+  return process.env.GEMINIGEN_GROK_VIDEO_ASPECT_RATIO ?? "portrait";
+}
+
+function getGrokVideoDuration() {
+  return process.env.GEMINIGEN_GROK_VIDEO_DURATION ?? "10";
+}
+
+function getGrokVideoMode() {
+  return process.env.GEMINIGEN_GROK_VIDEO_MODE ?? "custom";
+}
+
 function dataUrlToBlob(dataUrl: string) {
   const [meta, base64] = dataUrl.split(",");
   const mimeType = meta.match(/data:(.*?);base64/)?.[1] ?? "image/png";
@@ -168,7 +188,7 @@ export async function submitImageGeneration(scene: SceneRecord, slot: number) {
   };
 }
 
-export async function submitVideoGeneration(scene: SceneRecord): Promise<{
+export async function submitVideoGeneration(scene: SceneRecord, provider: QueueProvider): Promise<{
   provider: QueueProvider;
   submission: GeminigenSubmissionResponse | null;
 }> {
@@ -180,16 +200,35 @@ export async function submitVideoGeneration(scene: SceneRecord): Promise<{
   }
 
   const formData = new FormData();
-  formData.append(
-    "prompt",
-    [
-      scene.promptPackage.motionPrompt,
-      scene.promptPackage.visualPrompt,
-      scene.promptPackage.cloneDirective,
-      scene.sceneAdjustment ? `Scene adjustment override: ${scene.sceneAdjustment}` : "No scene adjustment override.",
-      "Keep the output vertical 9:16 and faithful to the reference."
-    ].join("\n\n")
-  );
+  const prompt = [
+    scene.promptPackage.motionPrompt,
+    scene.promptPackage.visualPrompt,
+    scene.promptPackage.cloneDirective,
+    scene.sceneAdjustment ? `Scene adjustment override: ${scene.sceneAdjustment}` : "No scene adjustment override.",
+    "Keep the output vertical 9:16 and faithful to the reference."
+  ].join("\n\n");
+
+  formData.append("prompt", prompt);
+
+  if (provider === "grok") {
+    formData.append("model", getGrokVideoModel());
+    formData.append("resolution", getGrokVideoResolution());
+    formData.append("aspect_ratio", getGrokVideoAspectRatio());
+    formData.append("duration", getGrokVideoDuration());
+    formData.append("mode", getGrokVideoMode());
+
+    if (scene.referenceImage.startsWith("data:image/")) {
+      formData.append("files", dataUrlToBlob(scene.referenceImage), "reference.png");
+    } else {
+      formData.append("file_urls", scene.referenceImage);
+    }
+
+    return {
+      provider,
+      submission: await submitForm("/video-gen/grok", formData)
+    };
+  }
+
   formData.append("model", getVideoModel());
   formData.append("resolution", "720p");
   formData.append("aspect_ratio", "9:16");
@@ -202,7 +241,7 @@ export async function submitVideoGeneration(scene: SceneRecord): Promise<{
   }
 
   return {
-    provider: "veo3",
+    provider,
     submission: await submitForm("/video-gen/veo", formData)
   };
 }
