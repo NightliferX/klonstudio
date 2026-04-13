@@ -113,10 +113,10 @@ export async function processPendingJobs(sceneMap: Record<string, SceneRecord>) 
           active.status = "failed";
           active.statusLabel = "Failed";
           active.error = remote?.error_message ?? active.error;
-        } else if (Number(remote?.status ?? 0) >= 2 && (mediaUrl ?? active.outputUrl)) {
+        } else if (Number(remote?.status ?? 0) >= 2) {
           active.status = "completed";
           active.progress = 100;
-          active.statusLabel = "Completed";
+          active.statusLabel = remote?.status_desc?.trim() || "Completed";
         } else {
           active.status = "rendering";
           active.statusLabel = remote?.status_desc?.trim() || `Rendering ${active.progress}%`;
@@ -206,7 +206,7 @@ export async function updateJobFromWebhook(
     target.status = "failed";
     target.statusLabel = "Failed";
     target.error = payload.errorMessage;
-  } else if (payload.status >= 2 && (payload.mediaUrl ?? target.outputUrl)) {
+  } else if (payload.status >= 2) {
     target.status = "completed";
     target.statusLabel = "Completed";
     target.progress = 100;
