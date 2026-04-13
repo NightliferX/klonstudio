@@ -26,11 +26,11 @@ function getApiKey() {
 }
 
 function getImageModel() {
-  return process.env.GEMINIGEN_IMAGE_MODEL ?? "imagen-flash";
+  return process.env.GEMINIGEN_IMAGE_MODEL ?? "imagen-4";
 }
 
 function getVideoModel() {
-  return process.env.GEMINIGEN_VIDEO_MODEL ?? "veo-3";
+  return process.env.GEMINIGEN_VIDEO_MODEL ?? "veo-2";
 }
 
 function dataUrlToBlob(dataUrl: string) {
@@ -42,14 +42,11 @@ function dataUrlToBlob(dataUrl: string) {
 function attachReferenceFields(formData: FormData, referenceImage: string) {
   if (referenceImage.startsWith("data:image/")) {
     const blob = dataUrlToBlob(referenceImage);
-    formData.append("image", blob, "reference.png");
-    formData.append("images", blob, "reference.png");
-    formData.append("image_reference", blob, "reference.png");
+    formData.append("files", blob, "reference.png");
     return;
   }
 
-  formData.append("image_reference", referenceImage);
-  formData.append("images_reference", referenceImage);
+  formData.append("file_urls", referenceImage);
 }
 
 async function submitForm(endpoint: string, formData: FormData) {
@@ -132,6 +129,9 @@ export async function submitImageGeneration(scene: SceneRecord, slot: number) {
   );
   formData.append("model", getImageModel());
   formData.append("aspect_ratio", "9:16");
+  formData.append("resolution", "1K");
+  formData.append("output_format", "png");
+  formData.append("style", "3D Render");
   formData.append("negative_prompt", scene.promptPackage.negativePrompt);
   attachReferenceFields(formData, scene.referenceImage);
 
@@ -152,23 +152,31 @@ export async function submitVideoGeneration(scene: SceneRecord): Promise<{
     };
   }
 
-  const payload: Record<string, unknown> = {
-    prompt: [
+  const formData = new FormData();
+  formData.append(
+    "prompt",
+    [
       scene.promptPackage.motionPrompt,
       scene.promptPackage.visualPrompt,
       scene.promptPackage.cloneDirective,
       scene.sceneAdjustment ? `Scene adjustment override: ${scene.sceneAdjustment}` : "No scene adjustment override.",
       "Keep the output vertical 9:16 and faithful to the reference."
-    ].join("\n\n"),
-    model: getVideoModel(),
-    aspect_ratio: "9:16"
-  };
+    ].join("\n\n")
+  );
+  formData.append("model", getVideoModel());
+  formData.append("resolution", "720p");
+  formData.append("aspect_ratio", "9:16");
+  formData.append("mode_image", "frame");
 
-  payload.image_reference = scene.referenceImage;
+  if (scene.referenceImage.startsWith("data:image/")) {
+    formData.append("ref_images", dataUrlToBlob(scene.referenceImage), "reference.png");
+  } else {
+    formData.append("ref_images", scene.referenceImage);
+  }
 
   return {
     provider: "veo3",
-    submission: await submitJson("/video-gen/veo", payload)
+    submission: await submitForm("/video-gen/veo", formData)
   };
 }
 
