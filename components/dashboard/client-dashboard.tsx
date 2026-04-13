@@ -26,6 +26,7 @@ function buildSceneAlternativePayload(scene: SceneRecord) {
     start: scene.start,
     end: scene.end,
     duration: scene.duration,
+    scriptText: scene.scriptText,
     narration: scene.narration,
     sceneAdjustment: scene.sceneAdjustment,
     referenceImage: scene.referenceImage,
@@ -617,9 +618,16 @@ export default function Dashboard({ initialAnalysis }: Props) {
 
                   <label className="text-xs font-bold uppercase tracking-[0.22em] text-white/30">Skript</label>
                   <textarea
+                    value={activeScene.scriptText}
+                    onChange={(event) => updateScene({ scriptText: event.target.value })}
+                    className="mt-3 min-h-[120px] rounded-[1.2rem] border border-white/8 bg-black/25 px-4 py-4 text-xl text-white outline-none placeholder:text-white/20 focus:border-violet-400/35"
+                  />
+
+                  <label className="mt-5 text-xs font-bold uppercase tracking-[0.22em] text-white/30">Szenenbeschreibung</label>
+                  <textarea
                     value={activeScene.narration}
                     onChange={(event) => updateScene({ narration: event.target.value })}
-                    className="mt-3 min-h-[120px] rounded-[1.2rem] border border-white/8 bg-black/25 px-4 py-4 text-xl text-white outline-none placeholder:text-white/20 focus:border-violet-400/35"
+                    className="mt-3 min-h-[110px] rounded-[1.2rem] border border-white/8 bg-black/25 px-4 py-4 text-base leading-7 text-white outline-none placeholder:text-white/20 focus:border-violet-400/35"
                   />
 
                   <label className="mt-5 text-xs font-bold uppercase tracking-[0.22em] text-white/30">Szene anpassen</label>

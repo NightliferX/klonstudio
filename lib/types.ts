@@ -37,6 +37,7 @@ export type SceneRecord = {
   start: number;
   end: number;
   duration: number;
+  scriptText: string;
   narration: string;
   subtitles: TranscriptWord[];
   sceneAdjustment: string;

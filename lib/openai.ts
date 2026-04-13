@@ -85,6 +85,7 @@ function buildFallbackAnalysis(asset: AssetRecord): AnalysisRecord {
     start: segment.start,
     end: segment.end,
     duration: segment.end - segment.start,
+    scriptText: segment.text,
     narration: segment.text,
     subtitles: segment.words,
     sceneAdjustment: "",
@@ -285,6 +286,11 @@ export async function analyzeVideoAsset(asset: AssetRecord): Promise<AnalysisRec
 
     const scenes: SceneRecord[] = generatedScenes.map((scene, index) => {
       const matchingWords = segments.flatMap((segment) => segment.words).filter((word) => word.start >= scene.start && word.end <= scene.end);
+      const matchingTranscriptSegments = segments.filter((segment) => segment.end >= scene.start && segment.start <= scene.end);
+      const scriptText =
+        matchingTranscriptSegments.map((segment) => segment.text.trim()).filter(Boolean).join(" ") ||
+        matchingWords.map((word) => word.word).join(" ").trim() ||
+        scene.narration;
 
       return {
         id: makeId("scene"),
@@ -292,6 +298,7 @@ export async function analyzeVideoAsset(asset: AssetRecord): Promise<AnalysisRec
         start: scene.start,
         end: scene.end,
         duration: scene.end - scene.start,
+        scriptText,
         narration: scene.narration,
         subtitles: matchingWords,
         sceneAdjustment: "",

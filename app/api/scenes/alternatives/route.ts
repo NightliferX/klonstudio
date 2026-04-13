@@ -10,6 +10,7 @@ export async function POST(request: Request) {
     const payload = sceneAlternativeSchema.parse(await request.json());
     const scene = {
       ...payload.scene,
+      scriptText: payload.scene.scriptText ?? payload.scene.narration,
       sceneAdjustment: payload.adjustment,
       alternatives: [],
       subtitles: []
