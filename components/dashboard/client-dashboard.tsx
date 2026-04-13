@@ -6,6 +6,7 @@ import { cn, formatDuration } from "@/lib/utils";
 
 type Props = {
   initialAnalysis: AnalysisRecord | null;
+  initialJobs: VideoJob[];
 };
 
 type SourceMode = "url" | "upload";
@@ -103,14 +104,14 @@ function ActionPill({
   );
 }
 
-export default function Dashboard({ initialAnalysis }: Props) {
+export default function Dashboard({ initialAnalysis, initialJobs }: Props) {
   const [sourceMode, setSourceMode] = useState<SourceMode>("url");
   const [urlInput, setUrlInput] = useState("");
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [analysis, setAnalysis] = useState<AnalysisRecord | null>(initialAnalysis);
   const [activeSceneId, setActiveSceneId] = useState(initialAnalysis?.scenes[0]?.id ?? "");
   const [provider, setProvider] = useState<"veo3">("veo3");
-  const [jobs, setJobs] = useState<VideoJob[]>([]);
+  const [jobs, setJobs] = useState<VideoJob[]>(initialJobs);
   const [statusMessage, setStatusMessage] = useState<string>("Warte auf Input.");
   const [isPending, startUiTransition] = useTransition();
   const uploadRef = useRef<HTMLInputElement | null>(null);
@@ -127,6 +128,15 @@ export default function Dashboard({ initialAnalysis }: Props) {
       setActiveSceneId(analysis.scenes[0].id);
     }
   }, [analysis, activeSceneId]);
+
+  useEffect(() => {
+    if (initialJobs.length > 0) {
+      void fetchJobs(true);
+      if (!initialAnalysis) {
+        setStatusMessage("Gespeicherte Render-Queue wurde wiederhergestellt.");
+      }
+    }
+  }, []);
 
   useEffect(() => {
     let timer: ReturnType<typeof setInterval> | undefined;
