@@ -19,6 +19,20 @@ async function readImageAsDataUrl(file: File) {
   });
 }
 
+function buildSceneAlternativePayload(scene: SceneRecord) {
+  return {
+    id: scene.id,
+    label: scene.label,
+    start: scene.start,
+    end: scene.end,
+    duration: scene.duration,
+    narration: scene.narration,
+    sceneAdjustment: scene.sceneAdjustment,
+    referenceImage: scene.referenceImage,
+    promptPackage: scene.promptPackage
+  };
+}
+
 function StatusChip({ status, label }: { status: VideoJob["status"]; label: string }) {
   return (
     <span
@@ -208,34 +222,43 @@ export default function Dashboard({ initialAnalysis }: Props) {
   async function handleGenerateAlternatives(scene: SceneRecord) {
     setStatusMessage(`GeminiGen Bildjobs fuer ${scene.label} werden vorbereitet...`);
     startUiTransition(async () => {
-      const response = await fetch("/api/scenes/alternatives", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          scene,
-          adjustment: scene.sceneAdjustment
-        })
-      });
+      try {
+        const response = await fetch("/api/scenes/alternatives", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            scene: buildSceneAlternativePayload(scene),
+            adjustment: scene.sceneAdjustment
+          })
+        });
 
-      const payload = (await response.json()) as { alternatives: string[] };
-      startTransition(() => {
-        setAnalysis((current) =>
-          current
-            ? {
-                ...current,
-                scenes: current.scenes.map((entry) =>
-                  entry.id === scene.id
-                    ? {
-                        ...entry,
-                        alternatives: payload.alternatives
-                      }
-                    : entry
-                )
-              }
-            : current
-        );
-      });
-      setStatusMessage(`Drei Bildoptionen fuer ${scene.label} wurden an GeminiGen uebergeben.`);
+        const payload = (await response.json()) as { alternatives?: string[]; error?: string };
+        if (!response.ok || !payload.alternatives) {
+          throw new Error(payload.error ?? "Bildgenerierung fehlgeschlagen.");
+        }
+
+        startTransition(() => {
+          setAnalysis((current) =>
+            current
+              ? {
+                  ...current,
+                  scenes: current.scenes.map((entry) =>
+                    entry.id === scene.id
+                      ? {
+                          ...entry,
+                          alternatives: payload.alternatives ?? entry.alternatives
+                        }
+                      : entry
+                  )
+                }
+              : current
+          );
+        });
+        setStatusMessage(`Drei Bildoptionen fuer ${scene.label} wurden an GeminiGen uebergeben.`);
+      } catch (error) {
+        console.error(error);
+        setStatusMessage(error instanceof Error ? error.message : "Bildgenerierung fehlgeschlagen.");
+      }
     });
   }
 
@@ -247,22 +270,33 @@ export default function Dashboard({ initialAnalysis }: Props) {
     setStatusMessage("GeminiGen Bildjobs fuer alle Szenen werden gebaut...");
 
     startUiTransition(async () => {
-      const nextScenes = await Promise.all(
-        analysis.scenes.map(async (scene) => {
-          const response = await fetch("/api/scenes/alternatives", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ scene, adjustment: scene.sceneAdjustment })
-          });
-          const payload = (await response.json()) as { alternatives: string[] };
-          return { ...scene, alternatives: payload.alternatives };
-        })
-      );
+      try {
+        const nextScenes = await Promise.all(
+          analysis.scenes.map(async (scene) => {
+            const response = await fetch("/api/scenes/alternatives", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                scene: buildSceneAlternativePayload(scene),
+                adjustment: scene.sceneAdjustment
+              })
+            });
+            const payload = (await response.json()) as { alternatives?: string[]; error?: string };
+            if (!response.ok || !payload.alternatives) {
+              throw new Error(payload.error ?? `Bildgenerierung fuer ${scene.label} fehlgeschlagen.`);
+            }
+            return { ...scene, alternatives: payload.alternatives };
+          })
+        );
 
-      startTransition(() => {
-        setAnalysis((current) => (current ? { ...current, scenes: nextScenes } : current));
-      });
-      setStatusMessage("Alle Szenen wurden an GeminiGen fuer Bildvarianten uebergeben.");
+        startTransition(() => {
+          setAnalysis((current) => (current ? { ...current, scenes: nextScenes } : current));
+        });
+        setStatusMessage("Alle Szenen wurden an GeminiGen fuer Bildvarianten uebergeben.");
+      } catch (error) {
+        console.error(error);
+        setStatusMessage(error instanceof Error ? error.message : "Bildgenerierung fehlgeschlagen.");
+      }
     });
   }
 

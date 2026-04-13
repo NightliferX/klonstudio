@@ -23,14 +23,6 @@ export const sceneAlternativeSchema = z.object({
     narration: z.string(),
     sceneAdjustment: z.string(),
     referenceImage: z.string(),
-    alternatives: z.array(z.string()),
-    subtitles: z.array(
-      z.object({
-        word: z.string(),
-        start: z.number(),
-        end: z.number()
-      })
-    ),
     promptPackage: z.object({
       visualPrompt: z.string(),
       motionPrompt: z.string(),
