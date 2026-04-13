@@ -15,8 +15,43 @@ import { makeId } from "@/lib/utils";
 
 const emptyQueue: QueueSnapshot = { jobs: [] };
 
+function normalizeJob(job: Partial<VideoJob>, index: number): VideoJob {
+  const createdAt = typeof job.createdAt === "string" && job.createdAt ? job.createdAt : new Date(0).toISOString();
+  const updatedAt = typeof job.updatedAt === "string" && job.updatedAt ? job.updatedAt : createdAt;
+  const progressValue = Number(job.progress);
+  const progress = Number.isFinite(progressValue) ? Math.max(0, Math.min(100, progressValue)) : 0;
+
+  return {
+    id: typeof job.id === "string" && job.id ? job.id : makeId(`job${index}`),
+    sceneId: typeof job.sceneId === "string" ? job.sceneId : "",
+    label: typeof job.label === "string" && job.label ? job.label : `Job ${index + 1}`,
+    provider: job.provider === "grok" || job.provider === "simulated" ? job.provider : "veo3",
+    service: "geminigen",
+    modelName: typeof job.modelName === "string" ? job.modelName : undefined,
+    status:
+      job.status === "rendering" || job.status === "completed" || job.status === "failed" ? job.status : "queued",
+    progress,
+    statusLabel:
+      typeof job.statusLabel === "string" && job.statusLabel
+        ? job.statusLabel
+        : progress > 0
+          ? `Rendering ${progress}%`
+          : "Ausstehend",
+    outputUrl: typeof job.outputUrl === "string" ? job.outputUrl : undefined,
+    thumbnailUrl: typeof job.thumbnailUrl === "string" ? job.thumbnailUrl : undefined,
+    externalJobId: typeof job.externalJobId === "string" ? job.externalJobId : undefined,
+    externalHistoryId: typeof job.externalHistoryId === "string" ? job.externalHistoryId : undefined,
+    createdAt,
+    updatedAt,
+    error: typeof job.error === "string" ? job.error : undefined
+  };
+}
+
 async function readQueue() {
-  return readJsonFile<QueueSnapshot>(JOB_DB_PATH, emptyQueue);
+  const queue = await readJsonFile<QueueSnapshot>(JOB_DB_PATH, emptyQueue);
+  return {
+    jobs: Array.isArray(queue.jobs) ? queue.jobs.map((job, index) => normalizeJob(job, index)) : []
+  };
 }
 
 async function saveQueue(queue: QueueSnapshot) {
