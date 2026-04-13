@@ -28,37 +28,30 @@ function buildFallbackAnalysis(asset: AssetRecord): AnalysisRecord {
       id: makeId("seg"),
       start: 0,
       end: 5.6,
-      text: "Elektrische Nacht über dem Beton, Lichtlinien pulsieren in die Kamera.",
+      text: "Reference-driven scene extracted from the uploaded clip.",
       words: [
-        { word: "Elektrische", start: 0, end: 0.8 },
-        { word: "Nacht", start: 0.8, end: 1.3 },
-        { word: "über", start: 1.3, end: 1.6 },
-        { word: "dem", start: 1.6, end: 1.9 },
-        { word: "Beton,", start: 1.9, end: 2.4 },
-        { word: "Lichtlinien", start: 2.4, end: 3.2 },
-        { word: "pulsieren", start: 3.2, end: 4.1 },
-        { word: "in", start: 4.1, end: 4.3 },
-        { word: "die", start: 4.3, end: 4.5 },
-        { word: "Kamera.", start: 4.5, end: 5.6 }
+        { word: "Reference-driven", start: 0, end: 1.4 },
+        { word: "scene", start: 1.4, end: 2.1 },
+        { word: "extracted", start: 2.1, end: 3.1 },
+        { word: "from", start: 3.1, end: 3.5 },
+        { word: "the", start: 3.5, end: 3.8 },
+        { word: "uploaded", start: 3.8, end: 4.8 },
+        { word: "clip.", start: 4.8, end: 5.6 }
       ]
     },
     {
       id: makeId("seg"),
       start: 5.6,
       end: 11.2,
-      text: "Ein digitaler Avatar bewegt sich durch violetten Nebel und kalte LED-Strukturen.",
+      text: "Reference-driven scene variation for the uploaded clip.",
       words: [
-        { word: "Ein", start: 5.6, end: 5.8 },
-        { word: "digitaler", start: 5.8, end: 6.5 },
-        { word: "Avatar", start: 6.5, end: 7.1 },
-        { word: "bewegt", start: 7.1, end: 7.7 },
-        { word: "sich", start: 7.7, end: 8.0 },
-        { word: "durch", start: 8.0, end: 8.4 },
-        { word: "violetten", start: 8.4, end: 9.0 },
-        { word: "Nebel", start: 9.0, end: 9.5 },
-        { word: "und", start: 9.5, end: 9.8 },
-        { word: "kalte", start: 9.8, end: 10.2 },
-        { word: "LED-Strukturen.", start: 10.2, end: 11.2 }
+        { word: "Reference-driven", start: 5.6, end: 6.9 },
+        { word: "scene", start: 6.9, end: 7.5 },
+        { word: "variation", start: 7.5, end: 8.5 },
+        { word: "for", start: 8.5, end: 8.9 },
+        { word: "the", start: 8.9, end: 9.2 },
+        { word: "uploaded", start: 9.2, end: 10.1 },
+        { word: "clip.", start: 10.1, end: 11.2 }
       ]
     }
   ];
@@ -66,23 +59,23 @@ function buildFallbackAnalysis(asset: AssetRecord): AnalysisRecord {
   const prompts: ScenePromptPackage[] = [
     {
       visualPrompt:
-        "Vertical 9:16 cyber-club opener, brutal black architecture, wet concrete reflections, sharp neon violet beam arrays, cinematic depth haze, hyper-detailed, tactile surfaces, fashion-film precision.",
+        `Vertical 9:16 frame based entirely on the uploaded reference clip "${asset.name}". Preserve the exact visible subject, materials, colors, composition, lighting, camera angle, environment, and art style from the reference image. Do not invent any person, face, body, crowd, or object that is not clearly visible in the reference.`,
       motionPrompt:
-        "Slow dolly push through light bars, subtle smoke drift, lens breathing, high-contrast nightclub energy, premium music-video pacing.",
+        "Animate only what is already visible in the selected reference frame. Keep the movement subtle and faithful to the original subject and environment.",
       cloneDirective:
-        "Clone the supplied reference image with exact framing, geometry, wardrobe, background layout, and lighting ratios. Deviate only where scene adjustment explicitly instructs a change.",
+        "The supplied reference image is the only source of truth. Reproduce it exactly 1:1. Do not reinterpret the subject. Do not add humans unless they are clearly present in the reference image. Deviate only where scene adjustment explicitly instructs a change.",
       negativePrompt:
-        "no extra limbs, no soft low-detail blur, no landscape framing, no text overlays, no duplicated subjects"
+        "no invented people, no extra characters, no face hallucinations, no subject replacement, no landscape framing, no text overlays"
     },
     {
       visualPrompt:
-        "Vertical 9:16 digital performer in violet mist corridor, sculptural LED lattice, glossy black PVC styling, razor-sharp editorial portraiture, cinematic atmosphere, hyperreal detail.",
+        `Vertical 9:16 variation based on the uploaded reference clip "${asset.name}". Preserve the exact visible object or subject from the reference image. Keep the generated image anchored to the real extracted frame and avoid semantic guessing.`,
       motionPrompt:
-        "Elegant forward glide with controlled parallax, body micro-movements, smoke and LED shimmer, futuristic club poise.",
+        "Use conservative motion and camera movement derived from the existing frame only. Keep the subject identity and environment unchanged.",
       cloneDirective:
-        "Replicate the reference 1:1 as the base image. Preserve subject identity, styling, pose, lens choice, and set design unless the scene adjustment text overrides those elements.",
+        "Replicate the reference frame 1:1 as the base image. Preserve subject identity, object shape, texture, pose, lens choice, and set design. Do not infer a human subject if the frame contains a product, fruit, 3D object, or abstract scene.",
       negativePrompt:
-        "no extra subjects, no washed-out exposure, no flat lighting, no landscape crop, no cartoon artifacts"
+        "no invented humans, no anthropomorphic changes, no extra subjects, no washed-out exposure, no landscape crop"
     }
   ];
 
