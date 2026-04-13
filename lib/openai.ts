@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import OpenAI from "openai";
-import { extractSceneReferenceSet } from "@/lib/media";
+import { extractSceneReferenceSet, extractVideoFrameDataUrl } from "@/lib/media";
 import type { AnalysisRecord, AssetRecord, ScenePromptPackage, SceneRecord, TranscriptSegment, TranscriptWord } from "@/lib/types";
 import { createPlaceholderReference } from "@/lib/demo";
 import { makeId } from "@/lib/utils";
@@ -128,6 +128,32 @@ async function attachRealReferenceImages(asset: AssetRecord, scenes: SceneRecord
   );
 }
 
+async function extractAnalysisFrames(asset: AssetRecord, segments: TranscriptSegment[]) {
+  const candidateTimes =
+    segments.length > 0
+      ? segments.slice(0, 6).map((segment) => Math.max(0, segment.start + (segment.end - segment.start) * 0.5))
+      : [0, 1.5, 3];
+
+  const uniqueTimes = [...new Set(candidateTimes.map((time) => Number(time.toFixed(2))))].slice(0, 6);
+  const frames = await Promise.all(
+    uniqueTimes.map(async (time, index) => {
+      try {
+        const dataUrl = await extractVideoFrameDataUrl(asset.filePath, time);
+        return {
+          label: `Frame ${index + 1} @ ${time.toFixed(2)}s`,
+          time,
+          dataUrl
+        };
+      } catch (error) {
+        console.error(`Failed to extract analysis frame at ${time}s.`, error);
+        return null;
+      }
+    })
+  );
+
+  return frames.filter((frame): frame is { label: string; time: number; dataUrl: string } => Boolean(frame));
+}
+
 export async function analyzeVideoAsset(asset: AssetRecord): Promise<AnalysisRecord> {
   const client = getOpenAIClient();
   if (!client) {
@@ -159,6 +185,8 @@ export async function analyzeVideoAsset(asset: AssetRecord): Promise<AnalysisRec
     );
 
     const transcriptText = (transcription as never as { text?: string }).text ?? segments.map((segment) => segment.text).join(" ");
+
+    const analysisFrames = await extractAnalysisFrames(asset, segments);
 
     const completion = await client.chat.completions.create({
       model: process.env.OPENAI_SCENE_MODEL ?? "gpt-4o",
@@ -197,11 +225,35 @@ export async function analyzeVideoAsset(asset: AssetRecord): Promise<AnalysisRec
         {
           role: "system",
           content:
-            "You break transcripts into cinematic short-form video scenes. Return 9:16 vertical video prompts only. Visual prompts must be extremely detailed, production-grade, and image-model friendly."
+            "You break transcripts into cinematic short-form video scenes. You must use the provided video frames as the visual source of truth. Never invent subjects that are not visible in the frames. Return 9:16 vertical video prompts only. Visual prompts must be extremely detailed, production-grade, and image-model friendly."
         },
         {
           role: "user",
-          content: `Split this transcript into scenes and generate prompts.\n\nTranscript:\n${transcriptText}`
+          content: [
+            {
+              type: "text",
+              text: [
+                "Split this video into scenes and generate prompts.",
+                "Use the transcript and the attached representative video frames together.",
+                "If the transcript is vague or misleading, trust the frames over the transcript for visible subject matter.",
+                "Do not describe a person, vlogger, room, desk, or social media UI unless those are clearly visible in the attached frames.",
+                `Uploaded asset: ${asset.name}`,
+                `Transcript:\n${transcriptText}`
+              ].join("\n\n")
+            },
+            ...analysisFrames.flatMap((frame) => [
+              {
+                type: "text" as const,
+                text: `${frame.label}`
+              },
+              {
+                type: "image_url" as const,
+                image_url: {
+                  url: frame.dataUrl
+                }
+              }
+            ])
+          ]
         }
       ]
     } as never);
