@@ -1,0 +1,12 @@
+.next
+node_modules
+.pnpm-store
+.env.local
+out
+tsconfig.tsbuildinfo
+storage/*
+!storage/.gitkeep
+!storage/jobs/.gitkeep
+!storage/references/.gitkeep
+!storage/uploads/.gitkeep
+!storage/renders/.gitkeep

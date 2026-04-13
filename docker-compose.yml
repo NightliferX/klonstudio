@@ -1,0 +1,22 @@
+services:
+  klonstudio:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: klonstudio-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env.local
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
+      NEXT_PUBLIC_QUEUE_POLL_MS: ${NEXT_PUBLIC_QUEUE_POLL_MS:-4000}
+      YTDLP_BINARY: ${YTDLP_BINARY:-/usr/local/bin/yt-dlp}
+    volumes:
+      - klonstudio-storage:/app/storage
+
+volumes:
+  klonstudio-storage:
