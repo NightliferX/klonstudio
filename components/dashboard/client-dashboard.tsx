@@ -358,6 +358,50 @@ export default function Dashboard({ initialAnalysis, initialJobs }: Props) {
     });
   }
 
+  async function handleResetWorkspace() {
+    const confirmed = window.confirm(
+      "Willst du wirklich Analyse, Queue, Uploads, Referenzen und Render-Dateien loeschen? Dieser Schritt kann nicht rueckgaengig gemacht werden."
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setStatusMessage("Workspace wird zurueckgesetzt...");
+
+    startUiTransition(async () => {
+      try {
+        const response = await fetch("/api/reset", {
+          method: "POST"
+        });
+
+        if (!response.ok) {
+          throw new Error("Reset fehlgeschlagen.");
+        }
+
+        startTransition(() => {
+          setAnalysis(null);
+          setJobs([]);
+          setActiveSceneId("");
+          setUploadedFile(null);
+          setUrlInput("");
+        });
+
+        if (uploadRef.current) {
+          uploadRef.current.value = "";
+        }
+
+        if (ownRefInput.current) {
+          ownRefInput.current.value = "";
+        }
+
+        setStatusMessage("Workspace geleert. Du kannst jetzt wieder bei null starten.");
+      } catch (error) {
+        setStatusMessage(error instanceof Error ? error.message : "Reset fehlgeschlagen.");
+      }
+    });
+  }
+
   function updateScene(patch: Partial<SceneRecord>) {
     if (!activeScene) {
       return;
@@ -504,6 +548,15 @@ export default function Dashboard({ initialAnalysis, initialJobs }: Props) {
                 className="mt-5 w-full rounded-[1.4rem] border border-violet-300/50 bg-[linear-gradient(180deg,#cda9ff,#8e4dff)] px-5 py-4 text-base font-black text-black transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 ⚡ Szenen erkennen & loslegen
+              </button>
+
+              <button
+                type="button"
+                onClick={() => void handleResetWorkspace()}
+                disabled={isPending}
+                className="mt-3 w-full rounded-[1.15rem] border border-rose-400/25 bg-[linear-gradient(180deg,rgba(120,17,39,0.5),rgba(41,8,18,0.82))] px-5 py-3 text-sm font-bold uppercase tracking-[0.2em] text-rose-100 transition hover:border-rose-300/40 hover:bg-[linear-gradient(180deg,rgba(148,23,54,0.56),rgba(58,11,24,0.9))] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Reset Projekt
               </button>
 
               <div className="mt-5 grid gap-3 sm:grid-cols-3">
