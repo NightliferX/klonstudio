@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import OpenAI from "openai";
+import { extractSceneReferenceSet } from "@/lib/media";
 import type { AnalysisRecord, AssetRecord, ScenePromptPackage, SceneRecord, TranscriptSegment, TranscriptWord } from "@/lib/types";
 import { createPlaceholderReference } from "@/lib/demo";
 import { makeId } from "@/lib/utils";
@@ -112,10 +113,36 @@ function buildFallbackAnalysis(asset: AssetRecord): AnalysisRecord {
   };
 }
 
+async function attachRealReferenceImages(asset: AssetRecord, scenes: SceneRecord[]) {
+  return Promise.all(
+    scenes.map(async (scene, index) => {
+      try {
+        const extracted = await extractSceneReferenceSet(asset.filePath, scene.start, scene.end);
+        return {
+          ...scene,
+          referenceImage: extracted[1] ?? extracted[0] ?? scene.referenceImage,
+          alternatives: [
+            extracted[0] ?? scene.alternatives[0] ?? createPlaceholderReference(`ALT ${index + 1}A`, "Frame A"),
+            extracted[1] ?? scene.alternatives[1] ?? createPlaceholderReference(`ALT ${index + 1}B`, "Frame B"),
+            extracted[2] ?? scene.alternatives[2] ?? createPlaceholderReference(`ALT ${index + 1}C`, "Frame C")
+          ]
+        };
+      } catch (error) {
+        console.error(`Failed to extract reference frames for ${scene.label}.`, error);
+        return scene;
+      }
+    })
+  );
+}
+
 export async function analyzeVideoAsset(asset: AssetRecord): Promise<AnalysisRecord> {
   const client = getOpenAIClient();
   if (!client) {
-    return buildFallbackAnalysis(asset);
+    const fallback = buildFallbackAnalysis(asset);
+    return {
+      ...fallback,
+      scenes: await attachRealReferenceImages(asset, fallback.scenes)
+    };
   }
 
   try {
@@ -242,11 +269,15 @@ export async function analyzeVideoAsset(asset: AssetRecord): Promise<AnalysisRec
       asset,
       transcriptText,
       transcript: segments,
-      scenes,
+      scenes: await attachRealReferenceImages(asset, scenes),
       createdAt: new Date().toISOString()
     };
   } catch (error) {
     console.error("OpenAI analysis failed, using fallback scenes instead.", error);
-    return buildFallbackAnalysis(asset);
+    const fallback = buildFallbackAnalysis(asset);
+    return {
+      ...fallback,
+      scenes: await attachRealReferenceImages(asset, fallback.scenes)
+    };
   }
 }
