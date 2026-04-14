@@ -133,9 +133,11 @@ export async function processPendingJobs(sceneMap: Record<string, SceneRecord>) 
   if (active) {
     let didChange = false;
 
-    if (active.externalHistoryId) {
+    const historyLookupId = active.externalHistoryId ?? active.externalJobId;
+
+    if (historyLookupId) {
       try {
-        const remote = await fetchGenerationStatus(active.externalHistoryId);
+        const remote = await fetchGenerationStatus(historyLookupId);
         const mediaUrl = getSubmissionMediaUrl(remote);
         const thumbnailUrl = getSubmissionThumbnailUrl(remote);
         const remoteProgress = getSubmissionProgress(remote);

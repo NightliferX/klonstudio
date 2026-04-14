@@ -15,6 +15,13 @@ export type GeminigenSubmissionResponse = {
   thumbnail_url?: string;
   generate_result?: string;
   thumbnail_small?: string;
+  generated_video?: Array<{
+    uuid?: string;
+    status?: number;
+    error_message?: string;
+    video_url?: string;
+    last_frame?: string;
+  }>;
 };
 
 export type GeminigenWebhookPayload = {
@@ -246,12 +253,12 @@ export async function submitVideoGeneration(scene: SceneRecord, provider: QueueP
   };
 }
 
-export async function fetchGenerationStatus(conversionId: string) {
-  if (!conversionId) {
+export async function fetchGenerationStatus(conversionUuid: string) {
+  if (!conversionUuid) {
     return null;
   }
 
-  return fetchJson(`/history/${conversionId}`);
+  return fetchJson(`/history/${conversionUuid}`);
 }
 
 export function verifyGeminigenWebhook(eventUuid: string, signatureHex: string) {
@@ -278,13 +285,13 @@ export function getSubmissionId(submission: GeminigenSubmissionResponse | null) 
 }
 
 export function getSubmissionHistoryId(submission: GeminigenSubmissionResponse | null) {
-  return submission?.id ? String(submission.id) : undefined;
+  return submission?.uuid ?? (submission?.id ? String(submission.id) : undefined);
 }
 
 export function getSubmissionMediaUrl(submission: GeminigenSubmissionResponse | null) {
-  return submission?.media_url ?? submission?.generate_result;
+  return submission?.media_url ?? submission?.generate_result ?? submission?.generated_video?.[0]?.video_url;
 }
 
 export function getSubmissionThumbnailUrl(submission: GeminigenSubmissionResponse | null) {
-  return submission?.thumbnail_url ?? submission?.thumbnail_small;
+  return submission?.thumbnail_url ?? submission?.thumbnail_small ?? submission?.generated_video?.[0]?.last_frame;
 }
