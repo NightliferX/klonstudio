@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { startTransition, useEffect, useState, useTransition } from "react";
+import { startTransition, useEffect, useRef, useState, useTransition } from "react";
 import { AppHeader } from "@/components/dashboard/app-header";
+import { ToolGuideContent } from "@/components/dashboard/tool-guide-content";
 import type { AnalysisRecord, AssetRecord, QueueProvider, SceneRecord, VideoJob } from "@/lib/types";
 import { cn, formatDuration } from "@/lib/utils";
 
@@ -194,6 +195,7 @@ export default function Dashboard({ initialAnalysis, initialJobs }: Props) {
   const [jobs, setJobs] = useState<VideoJob[]>(initialJobs);
   const [statusMessage, setStatusMessage] = useState<string>("Warte auf dein erstes Video.");
   const [isPending, startUiTransition] = useTransition();
+  const uploadRef = useRef<HTMLInputElement | null>(null);
 
   const activeJobs = jobs.filter((job) => job.status === "queued" || job.status === "rendering").length;
   const completedJobs = jobs.filter((job) => job.status === "completed").length;
@@ -498,6 +500,10 @@ export default function Dashboard({ initialAnalysis, initialJobs }: Props) {
           setUrlInput("");
         });
 
+        if (uploadRef.current) {
+          uploadRef.current.value = "";
+        }
+
         setStatusMessage("Workspace geleert. Du kannst jetzt wieder bei null starten.");
       } catch (error) {
         setStatusMessage(error instanceof Error ? error.message : "Reset fehlgeschlagen.");
@@ -511,6 +517,7 @@ export default function Dashboard({ initialAnalysis, initialJobs }: Props) {
         crumb="/ social video creator"
         actions={[
           { href: "/", label: "Admin" },
+          { href: "/guide", label: "Guide" },
           { href: "/projects", label: "Meine Projekte" },
           { href: "/", label: "Abmelden" }
         ]}
@@ -562,11 +569,12 @@ export default function Dashboard({ initialAnalysis, initialJobs }: Props) {
                     className="w-full rounded-[1.15rem] border border-white/8 bg-black/45 px-5 py-5 text-lg text-white outline-none placeholder:text-white/22 focus:border-violet-400/40"
                   />
                 ) : (
-                  <label className="block cursor-pointer rounded-[1.25rem] border border-dashed border-violet-300/25 bg-violet-500/[0.06] px-5 py-7 transition hover:border-violet-300/45 hover:bg-violet-500/[0.09]">
+                  <div className="relative overflow-hidden rounded-[1.25rem] border border-dashed border-violet-300/25 bg-violet-500/[0.06] px-5 py-7 transition hover:border-violet-300/45 hover:bg-violet-500/[0.09]">
                     <input
+                      ref={uploadRef}
                       type="file"
                       accept="video/mp4,video/quicktime,video/*"
-                      className="hidden"
+                      className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
                       onChange={(event) => setUploadedFile(event.target.files?.[0] ?? null)}
                     />
                     <div className="text-xs font-semibold uppercase tracking-[0.2em] text-violet-200/70">MP4 Upload</div>
@@ -574,7 +582,15 @@ export default function Dashboard({ initialAnalysis, initialJobs }: Props) {
                       {uploadedFile ? uploadedFile.name : "Video auswaehlen und direkt analysieren"}
                     </div>
                     <div className="mt-1 text-sm text-white/42">Lokale Datei wird ins Projekt kopiert und weiterverarbeitet.</div>
-                  </label>
+
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      className="mt-5 rounded-full border border-violet-300/35 bg-[linear-gradient(180deg,rgba(224,198,255,0.92),rgba(172,117,255,0.88))] px-5 py-3 text-sm font-black text-black shadow-[0_0_20px_rgba(176,38,255,0.2)] transition hover:brightness-110"
+                    >
+                      Datei auswaehlen
+                    </button>
+                  </div>
                 )}
 
                 <div>
@@ -616,6 +632,46 @@ export default function Dashboard({ initialAnalysis, initialJobs }: Props) {
               <div className="mt-2 text-4xl font-black tracking-[-0.06em] text-white">{jobs.length}</div>
               <div className="text-sm text-white/42">Jobs im Scheduler</div>
             </div>
+          </div>
+        </section>
+
+        <section className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
+          <aside className="panel rounded-[2rem] p-4 md:p-5">
+            <div className="rounded-[1.15rem] border border-[#e8ca73]/35 bg-[#f0ce6f]/12 px-4 py-3 text-sm font-semibold text-[#f6d984]">
+              📁 Herr Tech Video Creator
+            </div>
+
+            <div className="mt-6 space-y-3">
+              <button
+                type="button"
+                className="flex w-full items-center rounded-[1rem] border border-white/8 bg-white/[0.03] px-4 py-3 text-left text-sm font-semibold text-white/78 transition hover:border-violet-300/25 hover:text-white"
+              >
+                ☞ Upload & Analyse
+              </button>
+              <button
+                type="button"
+                className="flex w-full items-center rounded-[1rem] border border-white/8 bg-white/[0.03] px-4 py-3 text-left text-sm font-semibold text-white/62 transition hover:border-violet-300/25 hover:text-white"
+              >
+                🖼 Bild-Generierung
+              </button>
+              <button
+                type="button"
+                className="flex w-full items-center rounded-[1rem] border border-white/8 bg-white/[0.03] px-4 py-3 text-left text-sm font-semibold text-white/62 transition hover:border-violet-300/25 hover:text-white"
+              >
+                🎬 Video-Queue & Export
+              </button>
+
+              <Link
+                href="/guide"
+                className="flex w-full items-center justify-center rounded-[1rem] border border-violet-300/22 bg-violet-500/10 px-4 py-3 text-sm font-semibold text-violet-100 transition hover:border-violet-300/40"
+              >
+                Ganze Anleitung öffnen
+              </Link>
+            </div>
+          </aside>
+
+          <div className="panel neon-border rounded-[2rem] p-6 md:p-8">
+            <ToolGuideContent />
           </div>
         </section>
 
